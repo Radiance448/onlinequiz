@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Online Quiz System – With Database</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:#07080d; --s1:#0e1017; --s2:#151821; --s3:#1c2030;
+  --border:#252d40; --border2:#2e3a52;
+  --cyan:#00d4ff; --lime:#8bff47; --orange:#ff7c2a; --pink:#ff4d8f;
+  --purple:#9b5fff; --yellow:#ffd542; --red:#ff4444; --green:#1aff8c;
+  --text:#dde4f0; --muted:#4a5878; --mono:'Space Mono',monospace; --sans:'Outfit',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+
+/* noise overlay */
+body::before{content:'';position:fixed;inset:0;opacity:.025;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0}
+
+/* glow blobs */
+.blob1{position:fixed;top:-180px;left:-100px;width:600px;height:600px;
+  background:radial-gradient(circle,rgba(0,212,255,.07) 0%,transparent 65%);pointer-events:none;z-index:0}
+.blob2{position:fixed;bottom:-200px;right:-150px;width:700px;height:700px;
+  background:radial-gradient(circle,rgba(139,255,71,.05) 0%,transparent 65%);pointer-events:none;z-index:0}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 28px;background:rgba(7,8,13,.9);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border)}
+.logo{font-family:var(--mono);font-size:14px;font-weight:700;color:#fff;letter-spacing:2px}
+.logo em{color:var(--cyan);font-style:normal}
+.logo small{font-size:9px;color:var(--muted);margin-left:8px;letter-spacing:1px}
+.nav-pills{display:flex;gap:4px;flex-wrap:wrap}
+.pill{padding:5px 14px;border-radius:20px;font-family:var(--mono);font-size:10px;letter-spacing:1px;
+  cursor:pointer;transition:all .2s;border:1px solid var(--border);background:transparent;color:var(--muted);text-transform:uppercase}
+.pill:hover{border-color:var(--cyan);color:var(--cyan)}
+.pill.on{background:var(--cyan);border-color:var(--cyan);color:#000;font-weight:700}
+.user-chip{padding:5px 14px;border-radius:20px;font-family:var(--mono);font-size:10px;
+  background:rgba(26,255,140,.08);border:1px solid rgba(26,255,140,.25);color:var(--green);display:none}
+
+/* ── SCREENS ── */
+.scr{display:none;position:relative;z-index:1;max-width:940px;margin:0 auto;padding:44px 22px}
+.scr.on{display:block}
+
+/* ── DB STATUS BAR ── */
+.db-bar{display:flex;align-items:center;gap:10px;padding:8px 16px;
+  background:var(--s1);border:1px solid var(--border);border-radius:8px;
+  font-family:var(--mono);font-size:11px;margin-bottom:28px;flex-wrap:wrap;gap:8px}
+.db-dot{width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 6px var(--green);flex-shrink:0;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.db-dot.off{background:var(--red);box-shadow:0 0 6px var(--red);animation:none}
+.db-stat{color:var(--muted);margin-left:auto;display:flex;gap:16px}
+.db-stat span{color:var(--cyan)}
+
+/* ── HOME ── */
+.hero-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:5px;color:var(--cyan);
+  text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.hero-eyebrow::before{content:'';width:32px;height:1px;background:var(--cyan)}
+h1.hero{font-size:clamp(2.4rem,7vw,4.2rem);font-weight:900;line-height:1.05;margin-bottom:16px;letter-spacing:-1px}
+h1.hero .hl{color:var(--cyan)}
+h1.hero .hl2{color:var(--lime)}
+.hero-desc{font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.9;max-width:540px;margin-bottom:36px}
+.hero-desc b{color:var(--text)}
+
+.layer-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:36px}
+.layer-card{padding:20px 12px;border-radius:10px;text-align:center;
+  background:var(--s1);border:1px solid var(--border);cursor:default;
+  transition:transform .3s,border-color .3s}
+.layer-card:hover{transform:translateY(-6px)}
+.layer-card .li{font-size:24px;margin-bottom:8px}
+.layer-card .lt{font-family:var(--mono);font-size:11px;font-weight:700;margin-bottom:3px}
+.layer-card .ld{font-family:var(--mono);font-size:9px;color:var(--muted)}
+
+.btn-hero{padding:14px 52px;border:none;border-radius:8px;cursor:pointer;font-family:var(--mono);
+  font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;
+  background:linear-gradient(135deg,var(--cyan),var(--lime));color:#000;
+  transition:opacity .2s,transform .2s;box-shadow:0 0 32px rgba(0,212,255,.2)}
+.btn-hero:hover{opacity:.85;transform:translateY(-2px)}
+
+/* ── DB SCHEMA PANEL ── */
+.schema-panel{margin-top:36px;background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.schema-head{padding:12px 20px;background:var(--s2);border-bottom:1px solid var(--border);
+  font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--cyan);text-transform:uppercase;
+  display:flex;align-items:center;gap:10px}
+.schema-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0}
+.table-box{padding:18px 20px;border-right:1px solid var(--border)}
+.table-box:last-child{border-right:none}
+.table-name{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:10px;
+  display:flex;align-items:center;gap:6px}
+.col-row{font-family:var(--mono);font-size:10px;padding:3px 0;color:var(--muted);
+  display:flex;justify-content:space-between}
+.col-row .cname{color:var(--text)}
+.col-row .ctype{color:var(--purple)}
+.col-row .cpk{color:var(--orange);font-size:9px}
+
+/* ── LOGIN ── */
+.login-wrap{max-width:460px;margin:0 auto}
+.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:36px 32px}
+.card-tag{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--cyan);
+  text-transform:uppercase;margin-bottom:10px}
+.card-title{font-size:24px;font-weight:800;margin-bottom:6px}
+.card-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:26px;line-height:1.6}
+.field-lbl{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--muted);
+  text-transform:uppercase;display:block;margin-bottom:7px}
+.inp{width:100%;padding:11px 15px;border-radius:7px;
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  color:var(--text);font-family:var(--mono);font-size:13px;outline:none;
+  transition:border-color .2s;margin-bottom:16px}
+.inp:focus{border-color:var(--cyan)}
+.btn-login{width:100%;padding:12px;border:none;border-radius:7px;cursor:pointer;
+  background:var(--cyan);color:#000;font-weight:800;font-size:13px;
+  letter-spacing:1px;font-family:var(--mono);transition:opacity .2s}
+.btn-login:hover{opacity:.85}
+.db-hint{margin-top:16px;padding:12px 14px;
+  background:rgba(139,255,71,.04);border:1px solid rgba(139,255,71,.15);
+  border-radius:7px;font-family:var(--mono);font-size:10px;color:#6dcc3a;line-height:1.8}
+.err-msg{color:var(--red);font-family:var(--mono);font-size:11px;margin-bottom:12px;display:none}
+
+/* ── QUIZ ── */
+.quiz-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.qnum{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.timer-pill{display:flex;align-items:center;gap:8px;padding:6px 18px;
+  border-radius:20px;background:var(--s2);border:1px solid var(--border)}
+.tval{font-family:var(--mono);font-size:20px;font-weight:700;min-width:38px}
+.tval.ok{color:var(--green)} .tval.warn{color:var(--yellow)} .tval.danger{color:var(--red)}
+.score-pill{font-family:var(--mono);font-size:11px;padding:6px 14px;
+  border-radius:20px;background:var(--s2);border:1px solid var(--border)}
+.prog-track{height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin-bottom:26px}
+.prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--cyan),var(--lime));transition:width .5s}
+.q-card{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:28px 26px;margin-bottom:16px}
+.topic-tag{display:inline-block;padding:3px 10px;border-radius:4px;
+  font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;margin-bottom:14px}
+.q-txt{font-size:clamp(14px,2.5vw,19px);font-weight:700;line-height:1.55}
+.opts{display:grid;gap:9px}
+.opt{display:flex;align-items:center;gap:14px;padding:13px 18px;border-radius:8px;cursor:pointer;
+  background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);
+  color:var(--text);font-family:var(--mono);font-size:12px;text-align:left;
+  transition:all .18s}
+.opt:hover:not(:disabled){border-color:var(--cyan);background:rgba(0,212,255,.06)}
+.opt:disabled{cursor:default}
+.opt.correct{background:rgba(26,255,140,.07);border-color:var(--green);color:var(--green)}
+.opt.wrong{background:rgba(255,68,68,.07);border-color:var(--red);color:var(--red)}
+.opt-lbl{width:25px;height:25px;border-radius:50%;border:1px solid currentColor;
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
+.next-row{display:flex;justify-content:flex-end;margin-top:16px}
+.btn-next{padding:11px 30px;border:none;border-radius:7px;cursor:pointer;
+  background:linear-gradient(135deg,var(--cyan),var(--lime));color:#000;
+  font-weight:800;font-size:11px;letter-spacing:2px;font-family:var(--mono);
+  text-transform:uppercase;transition:opacity .2s}
+.btn-next:hover{opacity:.85}
+
+/* ── RESULT ── */
+.res-center{text-align:center}
+.res-emoji{font-size:68px;margin-bottom:8px}
+.res-title{font-size:30px;font-weight:900;margin-bottom:6px}
+.big-num{font-size:56px;font-weight:900;margin:8px 0}
+.res-sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:30px}
+.breakdown{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:9px;margin-bottom:28px}
+.bd-item{padding:10px 12px;border-radius:7px;font-family:var(--mono);font-size:10px}
+.bd-item.pass{background:rgba(26,255,140,.06);border:1px solid rgba(26,255,140,.2)}
+.bd-item.fail{background:rgba(255,68,68,.06);border:1px solid rgba(255,68,68,.2)}
+.res-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn-outline{padding:10px 26px;border-radius:7px;cursor:pointer;
+  background:transparent;border:1px solid var(--border);
+  color:var(--muted);font-family:var(--mono);font-size:11px;
+  letter-spacing:1px;transition:all .2s}
+.btn-outline:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* ── DATABASE PANEL ── */
+.db-panel-grid{display:grid;gap:20px}
+.db-section{background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.db-sec-head{padding:12px 20px;background:var(--s2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between}
+.db-sec-title{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--cyan);text-transform:uppercase}
+.db-count{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.db-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.db-table th{padding:9px 16px;text-align:left;font-size:9px;letter-spacing:2px;
+  color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border);background:var(--s2)}
+.db-table td{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text)}
+.db-table tr:last-child td{border-bottom:none}
+.db-table tr:hover td{background:rgba(255,255,255,.02)}
+.badge{padding:2px 8px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:1px}
+.badge.pass{background:rgba(26,255,140,.12);color:var(--green)}
+.badge.fail{background:rgba(255,68,68,.12);color:var(--red)}
+.badge.med{background:rgba(255,213,66,.12);color:var(--yellow)}
+.empty-row{padding:32px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:11px}
+.btn-clear{padding:5px 14px;border-radius:5px;cursor:pointer;
+  background:rgba(255,68,68,.08);border:1px solid rgba(255,68,68,.2);
+  color:var(--red);font-family:var(--mono);font-size:10px;transition:all .2s}
+.btn-clear:hover{background:rgba(255,68,68,.15)}
+
+/* ── LEADERBOARD ── */
+.lb-wrap{background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.lb-head-row{display:grid;grid-template-columns:48px 1fr 90px 70px 120px;
+  padding:10px 20px;background:var(--s2);border-bottom:1px solid var(--border);
+  font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}
+.lb-row{display:grid;grid-template-columns:48px 1fr 90px 70px 120px;
+  padding:13px 20px;border-bottom:1px solid rgba(255,255,255,.04);
+  font-family:var(--mono);font-size:11px;align-items:center}
+.lb-row:last-child{border-bottom:none}
+.lb-row:hover{background:rgba(255,255,255,.02)}
+.lb-empty{padding:52px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px}
+
+/* ── CODE VIEWER ── */
+.tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:7px 15px;border-radius:5px;cursor:pointer;
+  background:rgba(255,255,255,.03);border:1px solid var(--border);
+  color:var(--muted);font-family:var(--mono);font-size:10px;transition:all .2s}
+.tab:hover{border-color:var(--cyan);color:var(--cyan)}
+.tab.on{background:var(--cyan);border-color:var(--cyan);color:#000;font-weight:700}
+.code-wrap{position:relative}
+.copy-btn{position:absolute;top:12px;right:12px;z-index:5;
+  padding:5px 13px;border-radius:4px;cursor:pointer;
+  background:rgba(255,255,255,.06);border:1px solid var(--border);
+  color:var(--muted);font-family:var(--mono);font-size:9px;transition:all .2s}
+.copy-btn:hover{background:var(--lime);border-color:var(--lime);color:#000}
+pre{background:#020507;border:1px solid var(--border);border-radius:10px;
+  padding:22px 20px;font-family:var(--mono);font-size:11px;line-height:1.8;
+  color:#7dd3fc;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+
+/* ── PAGE HEADER ── */
+.pg-tag{font-family:var(--mono);font-size:9px;letter-spacing:4px;color:var(--cyan);
+  text-transform:uppercase;margin-bottom:8px}
+.pg-title{font-size:26px;font-weight:800;margin-bottom:6px}
+.pg-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:24px}
+
+@media(max-width:600px){
+  .layer-grid{grid-template-columns:repeat(3,1fr)}
+  .lb-head-row,.lb-row{grid-template-columns:36px 1fr 70px 55px}
+  .lb-head-row span:last-child,.lb-row span:last-child{display:none}
+  nav{padding:10px 14px}
+  .nav-pills{gap:3px}
+  .pill{padding:4px 10px;font-size:9px}
+}
+</style>
+</head>
+<body>
+<div class="blob1"></div>
+<div class="blob2"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">QUIZ<em>SYS</em> <small>+ DATABASE</small></div>
+  <div class="nav-pills">
+    <button class="pill on" onclick="show('home')">Home</button>
+    <button class="pill" onclick="show('login')">Login</button>
+    <button class="pill" onclick="show('quiz')">Quiz</button>
+    <button class="pill" onclick="show('result')">Result</button>
+    <button class="pill" onclick="show('database')">Database</button>
+    <button class="pill" onclick="show('leaderboard')">Leaderboard</button>
+    <button class="pill" onclick="show('code')">Code</button>
+  </div>
+  <div class="user-chip" id="userChip">● Guest</div>
+</nav>
+
+<!-- ══════════════════════════ HOME -->
+<div id="home" class="scr on">
+  <div class="db-bar">
+    <div class="db-dot" id="dbDot"></div>
+    <span id="dbStatus" style="font-family:var(--mono);font-size:11px">Connecting to IndexedDB…</span>
+    <div class="db-stat">
+      Users: <span id="statUsers">0</span> &nbsp;|&nbsp;
+      Results: <span id="statResults">0</span> &nbsp;|&nbsp;
+      Questions: <span id="statQuestions">0</span>
+    </div>
+  </div>
+
+  <div class="hero-eyebrow">Full Stack Java EE + IndexedDB</div>
+  <h1 class="hero">Online <span class="hl">Quiz</span><br/><span class="hl2">System</span></h1>
+  <p class="hero-desc">
+    <b>JSP</b> views · <b>Servlet</b> controllers · <b>JDBC</b> persistence ·
+    <b>Spring Boot</b> REST API · <b>Session</b> auth ·
+    <b style="color:var(--cyan)">IndexedDB</b> browser database
+  </p>
+
+  <div class="layer-grid">
+    <div class="layer-card" style="border-color:rgba(255,213,66,.2)">
+      <div class="li">📄</div><div class="lt" style="color:var(--yellow)">JSP</div><div class="ld">View Layer</div>
+    </div>
+    <div class="layer-card" style="border-color:rgba(0,212,255,.2)">
+      <div class="li">⚙️</div><div class="lt" style="color:var(--cyan)">Servlet</div><div class="ld">Controller</div>
+    </div>
+    <div class="layer-card" style="border-color:rgba(139,255,71,.2)">
+      <div class="li">🗄️</div><div class="lt" style="color:var(--lime)">JDBC</div><div class="ld">Data Access</div>
+    </div>
+    <div class="layer-card" style="border-color:rgba(155,95,255,.2)">
+      <div class="li">🔌</div><div class="lt" style="color:var(--purple)">Spring Boot</div><div class="ld">REST API</div>
+    </div>
+    <div class="layer-card" style="border-color:rgba(0,212,255,.35);background:rgba(0,212,255,.04)">
+      <div class="li">💾</div><div class="lt" style="color:var(--cyan)">IndexedDB</div><div class="ld">Browser DB</div>
+    </div>
+  </div>
+
+  <button class="btn-hero" onclick="show('login')">Start Quiz →</button>
+
+  <!-- DB SCHEMA -->
+  <div class="schema-panel">
+    <div class="schema-head">💾 Database Schema — IndexedDB (MySQL equivalent)</div>
+    <div class="schema-body">
+      <div class="table-box">
+        <div class="table-name">🗂 users</div>
+        <div class="col-row"><span class="cname">id</span><span><span class="cpk">PK</span> <span class="ctype">INT</span></span></div>
+        <div class="col-row"><span class="cname">username</span><span class="ctype">VARCHAR</span></div>
+        <div class="col-row"><span class="cname">password</span><span class="ctype">VARCHAR</span></div>
+        <div class="col-row"><span class="cname">created_at</span><span class="ctype">DATETIME</span></div>
+      </div>
+      <div class="table-box">
+        <div class="table-name">📝 questions</div>
+        <div class="col-row"><span class="cname">id</span><span><span class="cpk">PK</span> <span class="ctype">INT</span></span></div>
+        <div class="col-row"><span class="cname">question</span><span class="ctype">TEXT</span></div>
+        <div class="col-row"><span class="cname">options</span><span class="ctype">JSON</span></div>
+        <div class="col-row"><span class="cname">answer</span><span class="ctype">VARCHAR</span></div>
+        <div class="col-row"><span class="cname">topic</span><span class="ctype">VARCHAR</span></div>
+      </div>
+      <div class="table-box">
+        <div class="table-name">🏆 results</div>
+        <div class="col-row"><span class="cname">id</span><span><span class="cpk">PK</span> <span class="ctype">INT</span></span></div>
+        <div class="col-row"><span class="cname">username</span><span class="ctype">VARCHAR</span></div>
+        <div class="col-row"><span class="cname">score</span><span class="ctype">INT</span></div>
+        <div class="col-row"><span class="cname">total</span><span class="ctype">INT</span></div>
+        <div class="col-row"><span class="cname">percentage</span><span class="ctype">FLOAT</span></div>
+        <div class="col-row"><span class="cname">taken_at</span><span class="ctype">DATETIME</span></div>
+      </div>
+      <div class="table-box">
+        <div class="table-name">🔐 sessions</div>
+        <div class="col-row"><span class="cname">id</span><span><span class="cpk">PK</span> <span class="ctype">INT</span></span></div>
+        <div class="col-row"><span class="cname">username</span><span class="ctype">VARCHAR</span></div>
+        <div class="col-row"><span class="cname">token</span><span class="ctype">VARCHAR</span></div>
+        <div class="col-row"><span class="cname">expires_at</span><span class="ctype">DATETIME</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ LOGIN -->
+<div id="login" class="scr">
+  <div class="login-wrap">
+    <div class="card">
+      <div class="card-tag">// LoginServlet.java + DB Auth</div>
+      <div class="card-title">User Login</div>
+      <div class="card-sub">Credentials saved to <span style="color:var(--cyan)">users</span> table · Session token stored in <span style="color:var(--cyan)">sessions</span> table</div>
+      <div class="err-msg" id="errMsg">❌ Username required!</div>
+      <label class="field-lbl">Username</label>
+      <input class="inp" id="uname" placeholder="Enter username…" onkeydown="if(event.key==='Enter')doLogin()"/>
+      <label class="field-lbl">Password</label>
+      <input class="inp" id="upass" type="password" placeholder="Enter password…" onkeydown="if(event.key==='Enter')doLogin()"/>
+      <button class="btn-login" onclick="doLogin()">Login &amp; Start Quiz</button>
+      <div class="db-hint">
+        // DB operations on login:<br/>
+        INSERT INTO users (username, password, created_at)<br/>
+        INSERT INTO sessions (username, token, expires_at)<br/>
+        session.setAttribute("username", user);
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ QUIZ -->
+<div id="quiz" class="scr">
+  <div class="quiz-top">
+    <div class="qnum" id="qnum">Q 1 / 7</div>
+    <div class="timer-pill">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">⏱</span>
+      <span class="tval ok" id="tval">20s</span>
+    </div>
+    <div class="score-pill">Score: <span style="color:var(--lime)" id="scoreLive">0</span></div>
+  </div>
+  <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  <div class="q-card">
+    <div class="topic-tag" id="topicTag"></div>
+    <div class="q-txt" id="qTxt"></div>
+  </div>
+  <div class="opts" id="optsWrap"></div>
+  <div class="next-row" id="nextRow" style="display:none">
+    <button class="btn-next" id="nextBtn" onclick="goNext()">Next →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════ RESULT -->
+<div id="result" class="scr">
+  <div class="res-center">
+    <div class="res-emoji" id="resEmoji">🏆</div>
+    <div class="res-title">Quiz Complete!</div>
+    <div class="big-num" id="bigNum">0/7</div>
+    <div class="res-sub" id="resSub">Saved to database…</div>
+    <div class="breakdown" id="bdGrid"></div>
+    <div class="res-btns">
+      <button class="btn-hero" style="padding:11px 30px" onclick="retryQuiz()">Retry Quiz</button>
+      <button class="btn-outline" onclick="show('database')">View Database</button>
+      <button class="btn-outline" onclick="show('leaderboard')">Leaderboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ DATABASE -->
+<div id="database" class="scr">
+  <div class="pg-tag">// IndexedDB Live Data</div>
+  <div class="pg-title">Database Explorer</div>
+  <div class="pg-sub">Live records stored in browser IndexedDB — equivalent to MySQL via JDBC</div>
+
+  <div class="db-bar" style="margin-bottom:24px">
+    <div class="db-dot" id="dbDot2"></div>
+    <span id="dbStatus2" style="font-family:var(--mono);font-size:11px">IndexedDB Connected</span>
+    <div class="db-stat">
+      Users: <span id="statUsers2">0</span> &nbsp;|&nbsp;
+      Results: <span id="statResults2">0</span>
+    </div>
+  </div>
+
+  <div class="db-panel-grid">
+    <!-- Users table -->
+    <div class="db-section">
+      <div class="db-sec-head">
+        <div class="db-sec-title">🗂 Table: users</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="db-count" id="usersCount">0 rows</span>
+          <button class="btn-clear" onclick="clearTable('users')">Clear</button>
+        </div>
+      </div>
+      <table class="db-table">
+        <thead><tr><th>ID</th><th>Username</th><th>Password</th><th>Created At</th></tr></thead>
+        <tbody id="usersTableBody"><tr><td colspan="4" class="empty-row">No users yet</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Results table -->
+    <div class="db-section">
+      <div class="db-sec-head">
+        <div class="db-sec-title">🏆 Table: results</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="db-count" id="resultsCount">0 rows</span>
+          <button class="btn-clear" onclick="clearTable('results')">Clear</button>
+        </div>
+      </div>
+      <table class="db-table">
+        <thead><tr><th>ID</th><th>Username</th><th>Score</th><th>%</th><th>Taken At</th></tr></thead>
+        <tbody id="resultsTableBody"><tr><td colspan="5" class="empty-row">No results yet</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Sessions table -->
+    <div class="db-section">
+      <div class="db-sec-head">
+        <div class="db-sec-title">🔐 Table: sessions</div>
+        <span class="db-count" id="sessionsCount">0 rows</span>
+      </div>
+      <table class="db-table">
+        <thead><tr><th>ID</th><th>Username</th><th>Token</th><th>Expires At</th></tr></thead>
+        <tbody id="sessionsTableBody"><tr><td colspan="4" class="empty-row">No sessions</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Questions table -->
+    <div class="db-section">
+      <div class="db-sec-head">
+        <div class="db-sec-title">📝 Table: questions</div>
+        <span class="db-count" id="questionsCount">0 rows</span>
+      </div>
+      <table class="db-table">
+        <thead><tr><th>ID</th><th>Topic</th><th>Question</th><th>Answer</th></tr></thead>
+        <tbody id="questionsTableBody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ LEADERBOARD -->
+<div id="leaderboard" class="scr">
+  <div class="pg-tag">// GET /api/results — Spring Boot REST</div>
+  <div class="pg-title">Leaderboard</div>
+  <div class="pg-sub">Top scores from <span style="color:var(--cyan)">results</span> table · Sorted by score DESC</div>
+  <div class="lb-wrap">
+    <div class="lb-head-row"><span>#</span><span>User</span><span>Score</span><span>%</span><span>Time</span></div>
+    <div id="lbBody"><div class="lb-empty">No results yet — complete a quiz!</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ CODE -->
+<div id="code" class="scr">
+  <div class="pg-tag">// Full Stack Source Code</div>
+  <div class="pg-title">Source Code</div>
+  <div class="pg-sub">JSP · Servlet · JDBC · Spring Boot · Session · IndexedDB</div>
+  <div class="tabs">
+    <div class="tab on" onclick="setTab(0)">📄 quiz.jsp</div>
+    <div class="tab" onclick="setTab(1)">⚙️ QuizServlet</div>
+    <div class="tab" onclick="setTab(2)">🗄️ QuizDAO</div>
+    <div class="tab" onclick="setTab(3)">🔌 QuizController</div>
+    <div class="tab" onclick="setTab(4)">🔐 LoginServlet</div>
+    <div class="tab" onclick="setTab(5)">💾 DB Schema SQL</div>
+  </div>
+  <div class="code-wrap">
+    <button class="copy-btn" id="copyBtn" onclick="doCopy()">Copy</button>
+    <pre id="codePre"></pre>
+  </div>
+</div>
+
+<!-- ══════════════════════════ JAVASCRIPT -->
+<script>
+// ─────────────────────────────────────────
+// DATABASE — IndexedDB
+// ─────────────────────────────────────────
+const DB_NAME = 'QuizSystemDB', DB_VER = 1;
+let db = null;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('users')) {
+        const us = d.createObjectStore('users', { keyPath: 'id', autoIncrement: true });
+        us.createIndex('username', 'username', { unique: true });
+      }
+      if (!d.objectStoreNames.contains('questions')) {
+        d.createObjectStore('questions', { keyPath: 'id', autoIncrement: true });
+      }
+      if (!d.objectStoreNames.contains('results')) {
+        const rs = d.createObjectStore('results', { keyPath: 'id', autoIncrement: true });
+        rs.createIndex('username', 'username', { unique: false });
+      }
+      if (!d.objectStoreNames.contains('sessions')) {
+        d.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+function dbPut(store, data)   { return new Promise((res,rej)=>{ const t=db.transaction(store,'readwrite'); const r=t.objectStore(store).add(data); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function dbGetAll(store)      { return new Promise((res,rej)=>{ const t=db.transaction(store,'readonly'); const r=t.objectStore(store).getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function dbClear(store)       { return new Promise((res,rej)=>{ const t=db.transaction(store,'readwrite'); const r=t.objectStore(store).clear(); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error); }); }
+function dbCount(store)       { return new Promise((res,rej)=>{ const t=db.transaction(store,'readonly'); const r=t.objectStore(store).count(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+
+// seed questions
+async function seedQuestions() {
+  const existing = await dbGetAll('questions');
+  if (existing.length > 0) return;
+  for (const q of QUESTIONS) await dbPut('questions', q);
+}
+
+async function updateStats() {
+  const u = await dbCount('users');
+  const r = await dbCount('results');
+  const q = await dbCount('questions');
+  ['statUsers','statUsers2'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=u; });
+  ['statResults','statResults2'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=r; });
+  const sq = document.getElementById('statQuestions'); if(sq) sq.textContent=q;
+}
+
+// ─────────────────────────────────────────
+// QUESTIONS DATA
+// ─────────────────────────────────────────
+const QUESTIONS = [
+  { id:1, topic:'JSP',         color:'#ffd542', q:'Which JSTL tag iterates over a collection in JSP?',                         opts:['<c:if>','<c:forEach>','<c:choose>','<c:set>'],                                                      ans:'<c:forEach>' },
+  { id:2, topic:'Servlet',     color:'#00d4ff', q:'Which HTTP method does a Servlet use to handle form submissions?',          opts:['GET','POST','PUT','DELETE'],                                                                         ans:'POST' },
+  { id:3, topic:'JDBC',        color:'#8bff47', q:'What does JDBC stand for?',                                                 opts:['Java Database Connectivity','Java Direct Base Connection','Java Data Bridge','Java Dynamic Binary'],  ans:'Java Database Connectivity' },
+  { id:4, topic:'Spring Boot', color:'#9b5fff', q:'Which annotation marks a class as a REST controller in Spring Boot?',       opts:['@Controller','@Service','@Component','@RestController'],                                            ans:'@RestController' },
+  { id:5, topic:'Session',     color:'#ff4d8f', q:'Which method invalidates a user\'s HTTP session?',                         opts:['session.destroy()','session.clear()','session.invalidate()','session.end()'],                        ans:'session.invalidate()' },
+  { id:6, topic:'Spring Boot', color:'#9b5fff', q:'Which annotation maps an HTTP GET request to a controller method?',         opts:['@PostMapping','@RequestMapping','@GetMapping','@PutMapping'],                                       ans:'@GetMapping' },
+  { id:7, topic:'JDBC',        color:'#8bff47', q:'Which JDBC class safely executes parameterised SQL queries?',               opts:['Statement','QueryExecutor','PreparedStatement','SQLRunner'],                                        ans:'PreparedStatement' },
+];
+
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let curQ=0, score=0, answers=[], username='Guest', timerInt=null, timeLeft=20, curTab=0;
+
+// ─────────────────────────────────────────
+// NAV
+// ─────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  document.querySelectorAll('.pill').forEach((b,i)=>{
+    b.classList.toggle('on', ['home','login','quiz','result','database','leaderboard','code'][i]===id);
+  });
+  if (id==='database') refreshDBPanel();
+  if (id==='leaderboard') refreshLeaderboard();
+  if (id==='code') renderCode();
+  updateStats();
+}
+
+// ─────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────
+async function doLogin() {
+  const u = document.getElementById('uname').value.trim();
+  const p = document.getElementById('upass').value.trim() || 'default';
+  const err = document.getElementById('errMsg');
+  if (!u) { err.style.display='block'; return; }
+  err.style.display='none';
+  username = u;
+
+  // Save user to DB (INSERT INTO users)
+  try { await dbPut('users', { username: u, password: btoa(p), created_at: new Date().toISOString() }); } catch(e) {}
+
+  // Save session token (INSERT INTO sessions)
+  const token = Math.random().toString(36).substring(2,18).toUpperCase();
+  const expires = new Date(Date.now() + 30*60*1000).toISOString();
+  try { await dbPut('sessions', { username: u, token, expires_at: expires }); } catch(e) {}
+
+  // Update user chip
+  const chip = document.getElementById('userChip');
+  chip.textContent = '● ' + u; chip.style.display='block';
+
+  await updateStats();
+  startQuiz();
+  show('quiz');
+}
+
+// ─────────────────────────────────────────
+// QUIZ
+// ─────────────────────────────────────────
+function startQuiz() { curQ=0; score=0; answers=[]; loadQ(); }
+
+function loadQ() {
+  if (curQ>=QUESTIONS.length) { finishQuiz(); return; }
+  const q = QUESTIONS[curQ];
+  document.getElementById('qnum').textContent = `Q ${curQ+1} / ${QUESTIONS.length}`;
+  document.getElementById('progFill').style.width = `${(curQ/QUESTIONS.length)*100}%`;
+  document.getElementById('scoreLive').textContent = score;
+  document.getElementById('nextRow').style.display='none';
+
+  const tag = document.getElementById('topicTag');
+  tag.textContent = q.topic;
+  tag.style.cssText=`background:${q.color}18;border:1px solid ${q.color}40;color:${q.color};
+    display:inline-block;padding:3px 10px;border-radius:4px;
+    font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px`;
+  document.getElementById('qTxt').textContent = q.q;
+
+  const wrap = document.getElementById('optsWrap');
+  wrap.innerHTML='';
+  ['A','B','C','D'].forEach((lbl,i) => {
+    const btn=document.createElement('button');
+    btn.className='opt';
+    btn.innerHTML=`<span class="opt-lbl">${lbl}</span>${q.opts[i]}`;
+    btn.onclick=()=>selectOpt(q.opts[i],btn);
+    wrap.appendChild(btn);
+  });
+
+  clearInterval(timerInt); timeLeft=20; updateTimer();
+  timerInt=setInterval(()=>{ timeLeft--; updateTimer(); if(timeLeft<=0){clearInterval(timerInt);revealAns(null);} },1000);
+}
+
+function updateTimer() {
+  const el=document.getElementById('tval');
+  el.textContent=timeLeft+'s';
+  el.className='tval '+(timeLeft<=5?'danger':timeLeft<=10?'warn':'ok');
+}
+
+function selectOpt(opt, btn) { clearInterval(timerInt); revealAns(opt); }
+
+function revealAns(chosen) {
+  const q=QUESTIONS[curQ];
+  const correct=chosen===q.ans;
+  if(correct) score++;
+  answers.push({topic:q.topic,color:q.color,correct,chosen,correct_ans:q.ans});
+  document.querySelectorAll('.opt').forEach(btn=>{
+    btn.disabled=true;
+    const txt=btn.textContent.slice(1).trim();
+    if(txt===q.ans) btn.classList.add('correct');
+    else if(txt===chosen) btn.classList.add('wrong');
+  });
+  const nb=document.getElementById('nextBtn');
+  nb.textContent=curQ+1>=QUESTIONS.length?'Finish →':'Next →';
+  document.getElementById('nextRow').style.display='flex';
+}
+
+function goNext() { curQ++; if(curQ>=QUESTIONS.length){finishQuiz();show('result');}else loadQ(); }
+
+async function finishQuiz() {
+  clearInterval(timerInt);
+  const pct=Math.round((score/QUESTIONS.length)*100);
+
+  // INSERT INTO results
+  await dbPut('results', {
+    username, score, total:QUESTIONS.length,
+    percentage:pct,
+    taken_at: new Date().toISOString()
+  });
+  await updateStats();
+
+  // render result screen
+  document.getElementById('resEmoji').textContent = pct>=85?'🏆':pct>=57?'🎯':'📚';
+  document.getElementById('bigNum').textContent = `${score}/${QUESTIONS.length}`;
+  document.getElementById('bigNum').style.color = pct>=70?'var(--lime)':pct>=40?'var(--yellow)':'var(--red)';
+  document.getElementById('resSub').textContent = `${pct}% · ${pct>=70?'Excellent!':pct>=40?'Good effort!':'Keep going!'} · Saved to database ✓`;
+
+  const grid=document.getElementById('bdGrid'); grid.innerHTML='';
+  answers.forEach((a,i)=>{
+    const d=document.createElement('div');
+    d.className='bd-item '+(a.correct?'pass':'fail');
+    d.innerHTML=`<span style="color:${a.correct?'var(--green)':'var(--red)'}">${a.correct?'✓':'✗'}</span> <span style="color:${a.color}">${a.topic}</span><br/><span style="color:var(--muted)">Q${i+1}</span>`;
+    grid.appendChild(d);
+  });
+}
+
+function retryQuiz() { startQuiz(); show('quiz'); }
+
+// ─────────────────────────────────────────
+// DATABASE PANEL
+// ─────────────────────────────────────────
+async function refreshDBPanel() {
+  // Users
+  const users = await dbGetAll('users');
+  document.getElementById('usersCount').textContent = users.length+' rows';
+  const ub=document.getElementById('usersTableBody');
+  ub.innerHTML = users.length ? users.map(u=>`<tr><td>${u.id}</td><td>${u.username}</td><td>••••••</td><td style="color:var(--muted);font-size:10px">${u.created_at?.slice(0,19).replace('T',' ')}</td></tr>`).join('') : '<tr><td colspan="4" class="empty-row">No users yet</td></tr>';
+
+  // Results
+  const results = await dbGetAll('results');
+  document.getElementById('resultsCount').textContent = results.length+' rows';
+  const rb=document.getElementById('resultsTableBody');
+  rb.innerHTML = results.length ? results.map(r=>{
+    const cls=r.percentage>=70?'pass':r.percentage>=40?'med':'fail';
+    return `<tr><td>${r.id}</td><td>${r.username}</td><td>${r.score}/${r.total}</td><td><span class="badge ${cls}">${r.percentage}%</span></td><td style="color:var(--muted);font-size:10px">${r.taken_at?.slice(0,19).replace('T',' ')}</td></tr>`;
+  }).join('') : '<tr><td colspan="5" class="empty-row">No results yet</td></tr>';
+
+  // Sessions
+  const sessions = await dbGetAll('sessions');
+  document.getElementById('sessionsCount').textContent = sessions.length+' rows';
+  const sb=document.getElementById('sessionsTableBody');
+  sb.innerHTML = sessions.length ? sessions.map(s=>`<tr><td>${s.id}</td><td>${s.username}</td><td style="color:var(--cyan);font-size:10px">${s.token}</td><td style="color:var(--muted);font-size:10px">${s.expires_at?.slice(0,19).replace('T',' ')}</td></tr>`).join('') : '<tr><td colspan="4" class="empty-row">No sessions</td></tr>';
+
+  // Questions
+  const qs = await dbGetAll('questions');
+  document.getElementById('questionsCount').textContent = qs.length+' rows';
+  const qb=document.getElementById('questionsTableBody');
+  qb.innerHTML = qs.length ? qs.map(q=>`<tr><td>${q.id}</td><td><span style="color:${q.color};font-size:10px">${q.topic}</span></td><td style="font-size:10px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.q}</td><td style="color:var(--lime);font-size:10px">${q.ans}</td></tr>`).join('') : '<tr><td colspan="4" class="empty-row">No questions</td></tr>';
+
+  updateStats();
+}
+
+async function clearTable(store) {
+  if (!confirm(`Clear all rows from "${store}"?`)) return;
+  await dbClear(store);
+  refreshDBPanel();
+}
+
+// ─────────────────────────────────────────
+// LEADERBOARD
+// ─────────────────────────────────────────
+async function refreshLeaderboard() {
+  const results = await dbGetAll('results');
+  const sorted = results.sort((a,b)=>b.score-a.score);
+  const body=document.getElementById('lbBody');
+  if(!sorted.length){body.innerHTML='<div class="lb-empty">No results yet — complete a quiz!</div>';return;}
+  const medals=['🥇','🥈','🥉'];
+  body.innerHTML=sorted.map((r,i)=>`
+    <div class="lb-row">
+      <span style="font-size:${i<3?'18':'12'}px">${medals[i]||i+1}</span>
+      <span style="font-weight:700">${r.username}</span>
+      <span style="color:var(--lime)">${r.score}/${r.total}</span>
+      <span style="color:${r.percentage>=70?'var(--lime)':'var(--yellow)'}">${r.percentage}%</span>
+      <span style="color:var(--muted);font-size:10px">${r.taken_at?.slice(11,19)||''}</span>
+    </div>`).join('');
+}
+
+// ─────────────────────────────────────────
+// CODE VIEWER
+// ─────────────────────────────────────────
+const CODES = [
+`<%@ page language="java" contentType="text/html; charset=UTF-8" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<!DOCTYPE html>
+<html>
+<head><title>Online Quiz</title></head>
+<body>
+  <h2>Welcome, \${sessionScope.username}!</h2>
+  <form action="QuizServlet" method="POST">
+    <c:forEach var="q" items="\${questions}" varStatus="s">
+      <div class="question">
+        <p><b>\${s.index+1}. \${q.question}</b></p>
+        <c:forEach var="opt" items="\${q.options}">
+          <label>
+            <input type="radio" name="q\${q.id}" value="\${opt}" required/>
+            \${opt}
+          </label><br/>
+        </c:forEach>
+      </div>
+    </c:forEach>
+    <input type="hidden" name="user" value="\${sessionScope.username}"/>
+    <button type="submit">Submit Quiz</button>
+  </form>
+</body>
+</html>`,
+
+`@WebServlet("/QuizServlet")
+public class QuizServlet extends HttpServlet {
+
+  protected void doPost(HttpServletRequest req, HttpServletResponse res)
+      throws ServletException, IOException {
+
+    HttpSession session = req.getSession(false);
+    if (session == null) { res.sendRedirect("login.jsp"); return; }
+
+    String username = (String) session.getAttribute("username");
+    int score = 0;
+    Map<Integer,String> correct = QuizDAO.getCorrectAnswers();
+
+    for (Map.Entry<Integer,String> e : correct.entrySet()) {
+      String sub = req.getParameter("q" + e.getKey());
+      if (e.getValue().equals(sub)) score++;
+    }
+
+    // Persist to DB via JDBC
+    QuizDAO.saveResult(username, score, correct.size());
+
+    session.setAttribute("score", score);
+    session.setAttribute("total", correct.size());
+    res.sendRedirect("result.jsp");
+  }
+}`,
+
+`public class QuizDAO {
+  static final String URL  = "jdbc:mysql://localhost:3306/quizdb";
+  static final String USER = "root", PASS = "password";
+
+  // INSERT INTO results
+  public static void saveResult(String user, int score, int total) {
+    String sql = "INSERT INTO results(username,score,total,percentage,taken_at)"
+               + " VALUES(?,?,?,?,NOW())";
+    try (Connection c = DriverManager.getConnection(URL,USER,PASS);
+         PreparedStatement ps = c.prepareStatement(sql)) {
+      ps.setString(1, user);
+      ps.setInt(2, score);
+      ps.setInt(3, total);
+      ps.setDouble(4, Math.round((double)score/total*100));
+      ps.executeUpdate();
+    } catch (SQLException e) { e.printStackTrace(); }
+  }
+
+  // SELECT * FROM questions
+  public static List<Question> getQuestions() {
+    List<Question> list = new ArrayList<>();
+    try (Connection c = DriverManager.getConnection(URL,USER,PASS);
+         Statement st = c.createStatement();
+         ResultSet rs = st.executeQuery("SELECT * FROM questions")) {
+      while (rs.next())
+        list.add(new Question(rs.getInt("id"),
+          rs.getString("question"), rs.getString("options"),
+          rs.getString("answer"), rs.getString("topic")));
+    } catch (SQLException e) { e.printStackTrace(); }
+    return list;
+  }
+
+  // SELECT * FROM results ORDER BY score DESC
+  public static List<Result> getLeaderboard() {
+    List<Result> list = new ArrayList<>();
+    String sql = "SELECT * FROM results ORDER BY score DESC LIMIT 10";
+    try (Connection c = DriverManager.getConnection(URL,USER,PASS);
+         Statement st = c.createStatement();
+         ResultSet rs = st.executeQuery(sql)) {
+      while (rs.next())
+        list.add(new Result(rs.getString("username"),
+          rs.getInt("score"), rs.getInt("total"),
+          rs.getTimestamp("taken_at")));
+    } catch (SQLException e) { e.printStackTrace(); }
+    return list;
+  }
+}`,
+
+`@RestController @RequestMapping("/api")
+public class QuizController {
+
+  @Autowired private QuizRepository quizRepo;
+  @Autowired private ResultRepository resultRepo;
+
+  // GET /api/questions
+  @GetMapping("/questions")
+  public List<Question> getAllQuestions() {
+    return quizRepo.findAll();
+  }
+
+  // GET /api/questions/{id}
+  @GetMapping("/questions/{id}")
+  public ResponseEntity<Question> getById(@PathVariable Long id) {
+    return quizRepo.findById(id)
+        .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.notFound().build());
+  }
+
+  // POST /api/questions
+  @PostMapping("/questions")
+  public Question addQuestion(@RequestBody Question q) {
+    return quizRepo.save(q);
+  }
+
+  // GET /api/leaderboard
+  @GetMapping("/leaderboard")
+  public List<Result> getLeaderboard() {
+    return resultRepo.findTop10ByOrderByScoreDesc();
+  }
+
+  // GET /api/results/{username}
+  @GetMapping("/results/{username}")
+  public List<Result> getUserResults(@PathVariable String username) {
+    return resultRepo.findByUsername(username);
+  }
+}`,
+
+`@WebServlet("/LoginServlet")
+public class LoginServlet extends HttpServlet {
+
+  protected void doPost(HttpServletRequest req, HttpServletResponse res)
+      throws ServletException, IOException {
+
+    String username = req.getParameter("username");
+    String password = req.getParameter("password");
+
+    if (AuthDAO.validate(username, password)) {
+      // Create session
+      HttpSession session = req.getSession(true);
+      session.setAttribute("username", username);
+      session.setMaxInactiveInterval(30 * 60);
+
+      // Save session token to DB
+      String token = UUID.randomUUID().toString();
+      AuthDAO.saveSession(username, token);
+
+      res.sendRedirect("quiz.jsp");
+    } else {
+      req.setAttribute("error", "Invalid credentials");
+      req.getRequestDispatcher("login.jsp").forward(req, res);
+    }
+  }
+
+  // GET = Logout
+  protected void doGet(HttpServletRequest req, HttpServletResponse res)
+      throws ServletException, IOException {
+    HttpSession s = req.getSession(false);
+    if (s != null) {
+      AuthDAO.deleteSession((String)s.getAttribute("username"));
+      s.invalidate();
+    }
+    res.sendRedirect("login.jsp");
+  }
+}`,
+
+`-- ═══════════════════════════════════════
+-- Online Quiz System — MySQL Schema
+-- ═══════════════════════════════════════
+
+CREATE DATABASE IF NOT EXISTS quizdb;
+USE quizdb;
+
+-- Users table
+CREATE TABLE users (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  username   VARCHAR(100) NOT NULL UNIQUE,
+  password   VARCHAR(255) NOT NULL,
+  created_at DATETIME DEFAULT NOW()
+);
+
+-- Questions table
+CREATE TABLE questions (
+  id       INT AUTO_INCREMENT PRIMARY KEY,
+  question TEXT NOT NULL,
+  options  JSON NOT NULL,
+  answer   VARCHAR(255) NOT NULL,
+  topic    VARCHAR(50)
+);
+
+-- Results table
+CREATE TABLE results (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  username   VARCHAR(100) NOT NULL,
+  score      INT NOT NULL,
+  total      INT NOT NULL,
+  percentage FLOAT NOT NULL,
+  taken_at   DATETIME DEFAULT NOW(),
+  FOREIGN KEY (username) REFERENCES users(username)
+);
+
+-- Sessions table
+CREATE TABLE sessions (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  username   VARCHAR(100) NOT NULL,
+  token      VARCHAR(255) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL
+);
+
+-- ── Seed questions ───────────────────────
+INSERT INTO questions (question, options, answer, topic) VALUES
+('Which JSTL tag iterates over a collection?',
+ '["<c:if>","<c:forEach>","<c:choose>","<c:set>"]',
+ '<c:forEach>', 'JSP'),
+('Which Servlet method handles form submissions?',
+ '["GET","POST","PUT","DELETE"]',
+ 'POST', 'Servlet'),
+('What does JDBC stand for?',
+ '["Java Database Connectivity","Java Direct Base","Java Data Bridge","Java Dynamic Binary"]',
+ 'Java Database Connectivity', 'JDBC');
+
+-- ── Useful queries ───────────────────────
+-- Leaderboard:
+SELECT username, score, total, percentage, taken_at
+FROM results ORDER BY score DESC LIMIT 10;
+
+-- User history:
+SELECT * FROM results WHERE username = ?
+ORDER BY taken_at DESC;`
+];
+
+function setTab(i) {
+  curTab=i;
+  document.querySelectorAll('.tab').forEach((t,idx)=>t.classList.toggle('on',idx===i));
+  renderCode();
+}
+function renderCode() { document.getElementById('codePre').textContent=CODES[curTab]; }
+function doCopy() {
+  navigator.clipboard?.writeText(CODES[curTab]).then(()=>{
+    const b=document.getElementById('copyBtn');
+    b.textContent='✓ Copied!'; b.style.background='var(--lime)'; b.style.color='#000';
+    setTimeout(()=>{ b.textContent='Copy'; b.style.background=''; b.style.color=''; },2000);
+  });
+}
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+(async ()=>{
+  try {
+    await initDB();
+    await seedQuestions();
+    await updateStats();
+    // Update DB status indicators
+    ['dbDot','dbDot2'].forEach(id=>{ const el=document.getElementById(id); if(el){el.classList.remove('off');} });
+    ['dbStatus','dbStatus2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='IndexedDB Connected ✓ (quizdb)'; });
+  } catch(e) {
+    ['dbDot','dbDot2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.add('off'); });
+    ['dbStatus','dbStatus2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='DB Error: '+e.message; });
+  }
+  loadQ();
+  renderCode();
+})();
+</script>
+</body>
+</html>
